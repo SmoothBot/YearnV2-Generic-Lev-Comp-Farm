@@ -51,13 +51,14 @@ def keeper(accounts):
 
 token_addresses = {
     "WFTM": "0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83",  # WFTM
-    
+    "DAI": "0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E",  # DAI
 }
 
 # TODO: uncomment those tokens you want to test as want
 @pytest.fixture(
     params=[
-        'WFTM', # WBTC
+        # 'WFTM', # WBTC
+        'DAI',
         # "YFI",  # YFI
         # "WETH",  # WETH
         # 'LINK', # LINK
@@ -71,7 +72,8 @@ def token(interface, request):
 
 
 cToken_addresses = {
-    "WFTM": "0x5AA53f03197E08C4851CAD8C92c7922DA5857E5d"
+    "WFTM": "0xfCD8570AD81e6c77b8D252bEbEBA62ed980BD64D",
+    "DAI": "0x8e15a22853A0A60a0FBB0d875055A8E66cff0235"
 }
 
 
@@ -81,7 +83,8 @@ def cToken(token):
 
 
 whale_addresses = {
-    "WFTM": "0x39B3bd37208CBaDE74D0fcBDBb12D606295b430a" #geist
+    "WFTM": "0x39B3bd37208CBaDE74D0fcBDBb12D606295b430a", #geist
+    "DAI": "0x07E6332dD090D287d3489245038daF987955DCFB" #geist
 }
 
 
@@ -90,7 +93,8 @@ def token_whale(token):
     yield whale_addresses[token.symbol()]
 
 cToken_whale_addresses = {
-    "WFTM": "0x9258A95a684C18cFc2EAB859d22366c278bE11b3"
+    "WFTM": "0x9258A95a684C18cFc2EAB859d22366c278bE11b3",
+    "DAI": "0xB8481A3cE515EA8cAa112dba0D1ecfc03937fbcD",
 }
 
 
@@ -115,7 +119,8 @@ def cToken_whale(token):
 #    print(f"Available liquidity: {cToken.getCash()/10**token.decimals()}")
 
 token_prices = {
-    "WFTM": 3
+    "WFTM": 3,
+    "DAI": 1,
 }
 
 
@@ -139,13 +144,13 @@ def weth(interface):
     yield interface.ERC20(token_address)
 
 @pytest.fixture
-def screamComptroller(interface):
-    token_address = "0x260E596DAbE3AFc463e75B6CC05d8c46aCAcFB09"
+def comptroller(interface):
+    token_address = "0x0F390559F258eB8591C8e31Cf0905E97cf36ACE2" # hundred finance
     yield interface.ComptrollerI(token_address)
 
 @pytest.fixture
-def scream(interface):
-    token_address = "0xe0654C8e6fd4D733349ac7E09f6f23DA256bF475"
+def comp(interface):
+    token_address = "0x10010078a54396F62c96dF8532dc2B4847d47ED3" # HND
     yield interface.ERC20(token_address)
 
 @pytest.fixture
@@ -189,16 +194,16 @@ def reentry_test(user, ReentryTest):
 
 
 @pytest.fixture
-def strategy(strategist, keeper, vault, Strategy, gov, cToken, spookyrouter, scream, screamComptroller, weth):
-    strategy = strategist.deploy(Strategy, vault, cToken,spookyrouter, scream, screamComptroller, weth, 1)
+def strategy(strategist, keeper, vault, Strategy, gov, cToken, spookyrouter, comp, comptroller, weth):
+    strategy = strategist.deploy(Strategy, vault, cToken,spookyrouter, comp, comptroller, weth, 1)
     strategy.setKeeper(keeper)
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 0, {"from": gov})
     yield strategy
 
 
 @pytest.fixture
-def factory(LevCompFactory, vault, cToken, strategist, gov, spookyrouter, scream, screamComptroller, weth):
-    factory = strategist.deploy(LevCompFactory, vault, cToken,spookyrouter, scream, screamComptroller, weth, 1)
+def factory(LevCompFactory, vault, cToken, strategist, gov, spookyrouter, comp, comptroller, weth):
+    factory = strategist.deploy(LevCompFactory, vault, cToken,spookyrouter, comp, comptroller, weth, 1)
     yield factory
 
 
