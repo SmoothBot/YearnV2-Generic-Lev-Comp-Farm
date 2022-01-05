@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 import {BaseStrategy, StrategyParams, VaultAPI} from "@yearnvaults/contracts/BaseStrategy.sol";
 
 import "./Interfaces/UniswapInterfaces/IUniswapV2Router02.sol";
-
+import "./Interfaces/balancerv2.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/math/Math.sol";
@@ -36,6 +36,16 @@ contract Strategy is BaseStrategy {
     address public weth;
     CErc20I public cToken;
 
+    // for balancer V2 swaps 
+    struct SwapSteps {
+        bytes32[] poolIds;
+        IAsset[] assets;
+    }
+
+    IBalancerVault public balancerVault;
+    SwapSteps internal swapSteps;
+
+
     uint256 private secondsPerBlock; //1 for fantom. 13 for ethereum
 
     IUniswapV2Router02 public currentRouter; //uni v2 forks only
@@ -57,7 +67,9 @@ contract Strategy is BaseStrategy {
     bool public splitCompDistribution;
 
     constructor(address _vault, address _cToken, address _router, address _comp, address _comptroller, address _weth, uint256 _secondsPerBlock) public BaseStrategy(_vault) {
+        
         _initializeThis(_cToken, _router, _comp, _comptroller, _weth, _secondsPerBlock);
+
     }
 
     function approveTokenMax(address token, address spender) internal {
@@ -125,6 +137,16 @@ contract Strategy is BaseStrategy {
 
     function setMinCompToSell(uint256 _minCompToSell) external management {
         minCompToSell = _minCompToSell;
+    }
+
+    function whitelistReward(SwapSteps memory _steps) external onlyGovernance {
+        IERC20 rewardToken = IERC20(comp);
+        rewardToken.approve(address(balancerVault), uint(-1));
+        swapSteps = _steps;
+    }
+
+    function setIBVault(address _balancerVault)  external onlyGovernance {
+        balancerVault = IBalancerVault(_balancerVault);
     }
 
     function setIterations(uint256 _iterations) external management {
@@ -585,6 +607,7 @@ contract Strategy is BaseStrategy {
     }
 
     //sell comp function
+    /*
     function _disposeOfComp() internal {
         uint256 _comp = balanceOfToken(comp);
         if (_comp < minCompToSell) {
@@ -594,6 +617,32 @@ contract Strategy is BaseStrategy {
         currentRouter.swapExactTokensForTokens(_comp, 0, getTokenOutPathV2(comp, address(want)), address(this), now);
 
     }
+    */
+
+    function _disposeOfComp() internal {
+        uint256 amount = balanceOfToken(comp);
+
+        uint length = swapSteps.poolIds.length;
+        IBalancerVault.BatchSwapStep[] memory steps = new IBalancerVault.BatchSwapStep[](length);
+        int[] memory limits = new int[](length + 1);
+        limits[0] = int(amount);
+        for (uint j = 0; j < length; j++) {
+            steps[j] = IBalancerVault.BatchSwapStep(swapSteps.poolIds[j],
+                j,
+                j + 1,
+                j == 0 ? amount : 0,
+                abi.encode(0)
+            );
+        }
+        balancerVault.batchSwap(IBalancerVault.SwapKind.GIVEN_IN,
+            steps,
+            swapSteps.assets,
+            IBalancerVault.FundManagement(address(this), false, address(this), false),
+            limits,
+            now + 10);
+        
+    }
+
 
     function getTokenOutPathV2(address _tokenIn, address _tokenOut) internal view returns (address[] memory _path) {
         bool isWeth = _tokenIn == address(weth) || _tokenOut == address(weth);
